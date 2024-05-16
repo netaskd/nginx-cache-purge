@@ -63,7 +63,7 @@ Assume we have already put the executable file `nginx-cache-purge` in `/usr/loca
 [Unit]
 Description=Nginx Cache Purge
 After=network.target
- 
+
 [Service]
 # same as the user/group of the nginx process
 User=www-data
@@ -72,7 +72,7 @@ Group=www-data
 ExecStart=/usr/local/bin/nginx-cache-purge start
 Restart=always
 RestartSec=3s
- 
+
 [Install]
 WantedBy=multi-user.target
 ```
@@ -95,7 +95,7 @@ Assume we want to put the cache in `/tmp/cache`.
 http {
     ...
 
-    map $request_method $is_purge {                                                             
+    map $request_method $is_purge {
         default   0;
         PURGE     1;
     }
@@ -109,10 +109,10 @@ http {
         location / {
             if ($is_purge) {
                 set $my_cache_key $scheme$request_uri;
-            
                 proxy_pass http://unix:/tmp/nginx-cache-purge.sock;
-                
                 rewrite ^ /?cache_path=/tmp/cache&levels=1:2&key=$my_cache_key break;
+                # all purge
+                #rewrite ^ /?remove_first=/&cache_path=/tmp/cache&levels=1:2&key=* break;
             }
 
             proxy_cache my_cache;
@@ -146,6 +146,37 @@ We can choose to disable the default features to obtain a much smaller executabl
 
 ```bash
 cargo install nginx-cache-purge --no-default-features
+```
+
+### Deployment example
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  template:
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.25.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-cache-purge
+              mountPath: /tmp
+        - name: nginx-cache-purge
+          image: netaskd/nginx-cache-purge:v0.4.4
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: nginx-cache-purge
+              mountPath: /tmp
+      volumes:
+        - name: nginx-cache-purge
+          emptyDir: {}
 ```
 
 ## License
